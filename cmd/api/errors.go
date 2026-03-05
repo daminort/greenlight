@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"greenlight.damian.net/internal/utils"
+	"greenlight.damian.net/internal/validator"
 )
 
 func (app *Application) LogError(r *http.Request, err error) {
@@ -44,4 +45,12 @@ func (app *Application) NotFoundResponse(w http.ResponseWriter, r *http.Request)
 func (app *Application) MethodNotAllowedResponse(w http.ResponseWriter, r *http.Request) {
 	message := fmt.Sprintf("The requested method %s is not allowed.", r.Method)
 	app.ErrorResponse(w, r, http.StatusMethodNotAllowed, message)
+}
+
+func (app *Application) BadRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
+	app.ErrorResponse(w, r, http.StatusBadRequest, err.Error())
+}
+
+func (app *Application) FailedValidationResponse(w http.ResponseWriter, r *http.Request, errors validator.ValidationErrors) {
+	app.ErrorResponse(w, r, http.StatusUnprocessableEntity, errors)
 }
