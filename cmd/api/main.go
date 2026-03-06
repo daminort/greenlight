@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 	"greenlight.damian.net/cmd/api/config"
 	"greenlight.damian.net/cmd/api/database"
+	"greenlight.damian.net/internal/models"
 )
 
 const version = "1.0.0"
@@ -38,12 +39,17 @@ func main() {
 	defer db.DB.Close()
 	logger.Info("database connection pool established")
 
+	// models
+	mdls := models.NewModels(db.DB)
+
+	// application
 	app := &Application{
 		Config: cfg,
 		Logger: logger,
-		DB:     db,
+		Models: mdls,
 	}
 
+	// server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      app.routes(),

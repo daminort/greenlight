@@ -1,11 +1,14 @@
 package models
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type Runtime int
@@ -20,7 +23,13 @@ type Movie struct {
 	CreatedAt time.Time `json:"-"`
 }
 
+type MovieService struct {
+	DB *sql.DB
+}
+
 var ErrInvalidRuntime = errors.New("invalid runtime format (expected 'N mins')")
+
+// Movie
 
 func (v Runtime) MarshalJSON() ([]byte, error) {
 	jsonValue := fmt.Sprintf("%d mins", v)
@@ -47,5 +56,34 @@ func (v *Runtime) UnmarshalJSON(jsonValue []byte) error {
 
 	*v = Runtime(value)
 
+	return nil
+}
+
+// MovieService
+
+func (ms *MovieService) GetMovies() ([]Movie, error) {
+	return nil, nil
+}
+
+func (ms *MovieService) GetMovie(id int64) (*Movie, error) {
+	return nil, nil
+}
+
+func (ms *MovieService) InsertMovie(movie *Movie) error {
+	query := `
+		INSERT INTO movies (title, year, runtime, genres)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, created_at, version`
+
+	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
+
+	return ms.DB.QueryRow(query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
+}
+
+func (ms *MovieService) UpdateMovie(movie *Movie) (*Movie, error) {
+	return nil, nil
+}
+
+func (ms *MovieService) DeleteMovie(id int64) error {
 	return nil
 }

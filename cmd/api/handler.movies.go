@@ -34,7 +34,27 @@ func (app *Application) createMovie(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "%+v", input)
+	movie := models.Movie{
+		Title:   input.Title,
+		Year:    input.Year,
+		Runtime: input.Runtime,
+		Genres:  input.Genres,
+	}
+
+	err = app.Models.Movies.InsertMovie(&movie)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+		return
+	}
+
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("/v1/movies/%d", movie.ID))
+
+	envelop := utils.NewEnvelope("movie", movie)
+	err = utils.WriteJSON(w, http.StatusCreated, envelop, headers)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+	}
 }
 
 func (app *Application) getMovie(w http.ResponseWriter, r *http.Request) {
