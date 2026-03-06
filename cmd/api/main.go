@@ -2,17 +2,26 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/joho/godotenv"
 	"greenlight.damian.net/cmd/api/config"
+	"greenlight.damian.net/cmd/api/database"
 )
 
 const version = "1.0.0"
 
 func main() {
+	// environment variables
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+		return
+	}
 
 	// config
 	cfg := config.New()
@@ -20,9 +29,19 @@ func main() {
 	// logger
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	// database
+	db, err := database.New()
+	if err != nil {
+		logger.Error("Unable to connect to database", "error", err.Error())
+		return
+	}
+	defer db.DB.Close()
+	logger.Info("database connection pool established")
+
 	app := &Application{
 		Config: cfg,
 		Logger: logger,
+		DB:     db,
 	}
 
 	srv := &http.Server{
@@ -36,7 +55,7 @@ func main() {
 
 	logger.Info("starting server", "addr", srv.Addr, "env", cfg.Env)
 
-	err := srv.ListenAndServe()
+	err = srv.ListenAndServe()
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
