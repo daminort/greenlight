@@ -1,6 +1,7 @@
 package models
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -98,7 +99,10 @@ func (ms *MovieService) GetMovie(id int64) (*Movie, error) {
 
 	var movie Movie
 
-	row := ms.DB.QueryRow(query, id)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	row := ms.DB.QueryRowContext(ctx, query, id)
 	err := row.Scan(
 		&movie.ID,
 		&movie.Title,
@@ -133,15 +137,15 @@ func (ms *MovieService) UpdateMovie(movie *Movie) error {
 	query := `
 		UPDATE movies
 		SET title = $2, year = $3, runtime = $4, genres = $5, version = version + 1
-		WHERE id = $1
+		WHERE id = $1 AND version = $6
 		RETURNING version`
 
-	args := []any{movie.ID, movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
+	args := []any{movie.ID, movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres), movie.Version}
 
 	err := ms.DB.QueryRow(query, args...).Scan(&movie.Version)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrRecordNotFound
+			return ErrEditConflict
 		}
 		return err
 	}

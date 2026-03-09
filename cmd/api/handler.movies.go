@@ -11,11 +11,18 @@ import (
 	"greenlight.damian.net/internal/validator"
 )
 
-type upsertMoviePayload struct {
+type createMoviePayload struct {
 	Title   string         `json:"title"`
 	Year    int            `json:"year"`
 	Runtime models.Runtime `json:"runtime"`
 	Genres  []string       `json:"genres"`
+}
+
+type updateMoviePayload struct {
+	Title   *string         `json:"title"`
+	Year    *int            `json:"year"`
+	Runtime *models.Runtime `json:"runtime"`
+	Genres  []string        `json:"genres"`
 }
 
 // Handlers
@@ -61,17 +68,11 @@ func (app *Application) getMovie(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Application) createMovie(w http.ResponseWriter, r *http.Request) {
-	var input upsertMoviePayload
+	var input createMoviePayload
 
 	err := utils.ReadJSON(w, r, &input)
 	if err != nil {
 		app.BadRequestResponse(w, r, err)
-		return
-	}
-
-	form := validateUpsertMoviePayload(input)
-	if !form.IsValid() {
-		app.FailedValidationResponse(w, r, form.Errors)
 		return
 	}
 
@@ -80,6 +81,12 @@ func (app *Application) createMovie(w http.ResponseWriter, r *http.Request) {
 		Year:    input.Year,
 		Runtime: input.Runtime,
 		Genres:  input.Genres,
+	}
+
+	form := validateMovie(&movie)
+	if !form.IsValid() {
+		app.FailedValidationResponse(w, r, form.Errors)
+		return
 	}
 
 	err = app.Models.Movies.InsertMovie(&movie)
@@ -99,7 +106,7 @@ func (app *Application) createMovie(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Application) updateMovie(w http.ResponseWriter, r *http.Request) {
-	var input upsertMoviePayload
+	var input updateMoviePayload
 
 	id, err := utils.ReadParamInt(r, "id")
 	if err != nil {
@@ -122,24 +129,34 @@ func (app *Application) updateMovie(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	form := validateUpsertMoviePayload(input)
+	if input.Title != nil {
+		movie.Title = *input.Title
+	}
+	if input.Year != nil {
+		movie.Year = *input.Year
+	}
+	if input.Runtime != nil {
+		movie.Runtime = *input.Runtime
+	}
+	if input.Genres != nil {
+		movie.Genres = input.Genres
+	}
+
+	form := validateMovie(movie)
 	if !form.IsValid() {
 		app.FailedValidationResponse(w, r, form.Errors)
 		return
 	}
 
-	movie.Title = input.Title
-	movie.Year = input.Year
-	movie.Runtime = input.Runtime
-	movie.Genres = input.Genres
-
 	err = app.Models.Movies.UpdateMovie(movie)
 	if err != nil {
-		if errors.Is(err, models.ErrRecordNotFound) {
-			app.NotFoundResponse(w, r)
-			return
+		switch {
+		case errors.Is(err, models.ErrEditConflict):
+			app.EditConflictResponse(w, r)
+		default:
+			app.ServerErrorResponse(w, r, err)
 		}
-		app.ServerErrorResponse(w, r, err)
+		return
 	}
 
 	envelope := utils.NewEnvelope("movie", movie)
@@ -174,23 +191,23 @@ func (app *Application) deleteMovie(w http.ResponseWriter, r *http.Request) {
 
 // Validators
 
-func validateUpsertMoviePayload(p upsertMoviePayload) *validator.Validator {
+func validateMovie(m *models.Movie) *validator.Validator {
 	v := validator.New()
 
-	v.Check(validator.NotBlank(p.Title), "title", "must be provided")
-	v.Check(validator.MaxChars(p.Title, 50), "title", "must not be more than 50 characters")
+	v.Check(validator.NotBlank(m.Title), "title", "must be provided")
+	v.Check(validator.MaxChars(m.Title, 50), "title", "must not be more than 50 characters")
 
-	v.Check(validator.NotZero(p.Year), "year", "must be provided")
-	v.Check(validator.GreaterThan(p.Year, 1887), "year", "must be greater than or equal to 1888")
-	v.Check(validator.LessThan(p.Year, int(time.Now().Year())+1), "year", "must not be in the future")
+	v.Check(validator.NotZero(m.Year), "year", "must be provided")
+	v.Check(validator.GreaterThan(m.Year, 1887), "year", "must be greater than or equal to 1888")
+	v.Check(validator.LessThan(m.Year, int(time.Now().Year())+1), "year", "must not be in the future")
 
-	v.Check(validator.NotZero(int(p.Runtime)), "runtime", "must be provided")
-	v.Check(validator.GreaterThan(int(p.Runtime), 0), "runtime", "must be positive")
+	v.Check(validator.NotZero(int(m.Runtime)), "runtime", "must be provided")
+	v.Check(validator.GreaterThan(int(m.Runtime), 0), "runtime", "must be positive")
 
-	v.Check(validator.NotNil(p.Genres), "genres", "must be provided")
-	v.Check(validator.GreaterThan(len(p.Genres), 0), "genres", "must contain at least 1 genre")
-	v.Check(validator.LessThan(len(p.Genres), 6), "genres", "must not contain more than 5 genres")
-	v.Check(validator.IsUnique(p.Genres), "genres", "must not contain duplicate values")
+	v.Check(validator.NotNil(m.Genres), "genres", "must be provided")
+	v.Check(validator.GreaterThan(len(m.Genres), 0), "genres", "must contain at least 1 genre")
+	v.Check(validator.LessThan(len(m.Genres), 6), "genres", "must not contain more than 5 genres")
+	v.Check(validator.IsUnique(m.Genres), "genres", "must not contain duplicate values")
 
 	return v
 }
