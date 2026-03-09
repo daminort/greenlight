@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,7 +11,7 @@ import (
 	"greenlight.damian.net/internal/validator"
 )
 
-type createMoviePayload struct {
+type upsertMoviePayload struct {
 	Title   string         `json:"title"`
 	Year    int            `json:"year"`
 	Runtime models.Runtime `json:"runtime"`
@@ -19,22 +20,18 @@ type createMoviePayload struct {
 
 // Handlers
 
-func (app *Application) createMovie(w http.ResponseWriter, r *http.Request) {
-	var input createMoviePayload
-
-	err := utils.ReadJSON(w, r, &input)
+func (app *Application) getMovies(w http.ResponseWriter, r *http.Request) {
+	movies, err := app.Models.Movies.GetMovies()
 	if err != nil {
-		app.BadRequestResponse(w, r, err)
+		app.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	form := validateCreateMoviePayload(input)
-	if !form.IsValid() {
-		app.FailedValidationResponse(w, r, form.Errors)
-		return
+	envelop := utils.NewEnvelope("movies", movies)
+	err = utils.WriteJSON(w, http.StatusOK, envelop, nil)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
 	}
-
-	fmt.Fprintf(w, "%+v", input)
 }
 
 func (app *Application) getMovie(w http.ResponseWriter, r *http.Request) {
@@ -44,14 +41,15 @@ func (app *Application) getMovie(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	movie := models.Movie{
-		ID:        id,
-		Title:     "Rambo",
-		Year:      1985,
-		Runtime:   92,
-		Genres:    []string{"action", "war"},
-		Version:   1,
-		CreatedAt: time.Now(),
+	movie, err := app.Models.Movies.GetMovie(id)
+	if err != nil {
+		if errors.Is(err, models.ErrRecordNotFound) {
+			app.NotFoundResponse(w, r)
+			return
+		}
+
+		app.ServerErrorResponse(w, r, err)
+		return
 	}
 
 	envelope := utils.NewEnvelope("movie", movie)
@@ -62,9 +60,121 @@ func (app *Application) getMovie(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (app *Application) createMovie(w http.ResponseWriter, r *http.Request) {
+	var input upsertMoviePayload
+
+	err := utils.ReadJSON(w, r, &input)
+	if err != nil {
+		app.BadRequestResponse(w, r, err)
+		return
+	}
+
+	form := validateUpsertMoviePayload(input)
+	if !form.IsValid() {
+		app.FailedValidationResponse(w, r, form.Errors)
+		return
+	}
+
+	movie := models.Movie{
+		Title:   input.Title,
+		Year:    input.Year,
+		Runtime: input.Runtime,
+		Genres:  input.Genres,
+	}
+
+	err = app.Models.Movies.InsertMovie(&movie)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+		return
+	}
+
+	headers := make(http.Header)
+	headers.Set("Location", fmt.Sprintf("/v1/movies/%d", movie.ID))
+
+	envelop := utils.NewEnvelope("movie", movie)
+	err = utils.WriteJSON(w, http.StatusCreated, envelop, headers)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+	}
+}
+
+func (app *Application) updateMovie(w http.ResponseWriter, r *http.Request) {
+	var input upsertMoviePayload
+
+	id, err := utils.ReadParamInt(r, "id")
+	if err != nil {
+		app.NotFoundResponse(w, r)
+		return
+	}
+
+	movie, err := app.Models.Movies.GetMovie(id)
+	if err != nil {
+		if errors.Is(err, models.ErrRecordNotFound) {
+			app.NotFoundResponse(w, r)
+			return
+		}
+		app.ServerErrorResponse(w, r, err)
+	}
+
+	err = utils.ReadJSON(w, r, &input)
+	if err != nil {
+		app.BadRequestResponse(w, r, err)
+		return
+	}
+
+	form := validateUpsertMoviePayload(input)
+	if !form.IsValid() {
+		app.FailedValidationResponse(w, r, form.Errors)
+		return
+	}
+
+	movie.Title = input.Title
+	movie.Year = input.Year
+	movie.Runtime = input.Runtime
+	movie.Genres = input.Genres
+
+	err = app.Models.Movies.UpdateMovie(movie)
+	if err != nil {
+		if errors.Is(err, models.ErrRecordNotFound) {
+			app.NotFoundResponse(w, r)
+			return
+		}
+		app.ServerErrorResponse(w, r, err)
+	}
+
+	envelope := utils.NewEnvelope("movie", movie)
+	err = utils.WriteJSON(w, http.StatusOK, envelope, nil)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+	}
+}
+
+func (app *Application) deleteMovie(w http.ResponseWriter, r *http.Request) {
+	id, err := utils.ReadParamInt(r, "id")
+	if err != nil {
+		app.NotFoundResponse(w, r)
+		return
+	}
+
+	err = app.Models.Movies.DeleteMovie(id)
+	if err != nil {
+		if errors.Is(err, models.ErrRecordNotFound) {
+			app.NotFoundResponse(w, r)
+			return
+		}
+		app.ServerErrorResponse(w, r, err)
+	}
+
+	envelope := utils.NewEnvelope("response", map[string]string{"status": "ok"})
+	err = utils.WriteJSON(w, http.StatusOK, envelope, nil)
+	if err != nil {
+		app.ServerErrorResponse(w, r, err)
+	}
+}
+
 // Validators
 
-func validateCreateMoviePayload(p createMoviePayload) *validator.Validator {
+func validateUpsertMoviePayload(p upsertMoviePayload) *validator.Validator {
 	v := validator.New()
 
 	v.Check(validator.NotBlank(p.Title), "title", "must be provided")
