@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"greenlight.damian.net/internal/filters"
 	"greenlight.damian.net/internal/models"
+	"greenlight.damian.net/internal/queries"
 	"greenlight.damian.net/internal/utils"
 	"greenlight.damian.net/internal/validator"
 )
@@ -25,16 +27,57 @@ type updateMoviePayload struct {
 	Genres  []string        `json:"genres"`
 }
 
+type getMoviesParams struct {
+	Genres []string
+	*filters.Filters
+}
+
 // Handlers
 
 func (app *Application) getMovies(w http.ResponseWriter, r *http.Request) {
+
+	// /movies?title=godfather&genres=crime,drama&page=1&page_size=5&sort=-year
+
+	fiParams := filters.InitParams{
+		SearchKey:   "title",
+		SortDefault: "title",
+		Columns: []string{
+			"title", "-title",
+			"year", "-year",
+			"runtime", "-runtime",
+		},
+	}
+
+	fils := filters.New(r.URL.Query(), fiParams)
+	fErrors := fils.Validate()
+	if len(fErrors) != 0 {
+		envelop := utils.NewEnvelope("errors", fErrors)
+		err := utils.WriteJSON(w, http.StatusBadRequest, envelop, nil)
+		if err != nil {
+			app.ServerErrorResponse(w, r, err)
+		}
+
+		return
+	}
+
+	query := queries.New(r.URL.Query())
+	params := getMoviesParams{
+		Genres:  query.ReadStrings("genres", []string{}),
+		Filters: fils,
+	}
+
 	movies, err := app.Models.Movies.GetMovies()
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	envelop := utils.NewEnvelope("movies", movies)
+	tmp := map[string]any{
+		"movies": movies,
+		"params": params,
+	}
+
+	envelop := utils.NewEnvelope("movies", tmp)
 	err = utils.WriteJSON(w, http.StatusOK, envelop, nil)
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)

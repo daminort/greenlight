@@ -65,7 +65,11 @@ func (v *Runtime) UnmarshalJSON(jsonValue []byte) error {
 func (ms *MovieService) GetMovies() ([]Movie, error) {
 	query := `
 		SELECT id, title, year, runtime, genres, created_at, version
-		FROM movies`
+		FROM movies
+		WHERE 
+		    (LOWER(title) = $1 OR $1 = '')
+			AND (genres @> $2 OR $2 = '{}')
+		ORDER BY title ASC`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -85,6 +89,10 @@ func (ms *MovieService) GetMovies() ([]Movie, error) {
 		}
 
 		movies = append(movies, m)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return movies, nil
