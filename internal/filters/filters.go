@@ -2,6 +2,7 @@ package filters
 
 import (
 	"net/url"
+	"strings"
 
 	"greenlight.damian.net/internal/queries"
 	"greenlight.damian.net/internal/validator"
@@ -53,4 +54,30 @@ func (f *Filters) Validate() validator.ValidationErrors {
 	}
 
 	return v.Errors
+}
+
+func (f *Filters) SortColumn() string {
+	for _, column := range f.Columns {
+		if f.Sort == column {
+			return strings.TrimPrefix(f.Sort, "-")
+		}
+	}
+
+	return "title"
+}
+
+func (f *Filters) SortDirection() string {
+	if strings.HasPrefix(f.Sort, "-") {
+		return "DESC"
+	}
+
+	return "ASC"
+}
+
+func (f *Filters) Limit() int {
+	return f.PageSize
+}
+
+func (f *Filters) Offset() int {
+	return (f.Page - 1) * f.PageSize
 }

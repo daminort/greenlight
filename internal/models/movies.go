@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	"greenlight.damian.net/internal/filters"
 )
 
 type Runtime int
@@ -26,6 +27,25 @@ type Movie struct {
 
 type MovieService struct {
 	DB *sql.DB
+}
+
+type CreateMoviePayload struct {
+	Title   string   `json:"title"`
+	Year    int      `json:"year"`
+	Runtime Runtime  `json:"runtime"`
+	Genres  []string `json:"genres"`
+}
+
+type UpdateMoviePayload struct {
+	Title   *string  `json:"title"`
+	Year    *int     `json:"year"`
+	Runtime *Runtime `json:"runtime"`
+	Genres  []string `json:"genres"`
+}
+
+type GetMoviesParams struct {
+	Genres []string
+	*filters.Filters
 }
 
 var ErrInvalidRuntime = errors.New("invalid runtime format (expected 'N mins')")
@@ -62,25 +82,33 @@ func (v *Runtime) UnmarshalJSON(jsonValue []byte) error {
 
 // MovieService
 
-func (ms *MovieService) GetMovies() ([]Movie, error) {
-	query := `
+func (ms *MovieService) GetMovies(params GetMoviesParams) ([]Movie, error) {
+	query := fmt.Sprintf(`
 		SELECT id, title, year, runtime, genres, created_at, version
 		FROM movies
 		WHERE 
-		    (LOWER(title) = $1 OR $1 = '')
-			AND (genres @> $2 OR $2 = '{}')
-		ORDER BY title ASC`
+		    (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
+			AND (genres && $2 OR $2 = '{}')
+		ORDER BY %s %s, id ASC
+		LIMIT $3 OFFSET $4`, params.Filters.SortColumn(), params.Filters.SortDirection())
+
+	args := []any{
+		params.Filters.Search,
+		pq.Array(params.Genres),
+		params.Filters.Limit(),
+		params.Filters.Offset(),
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := ms.DB.QueryContext(ctx, query)
+	rows, err := ms.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var movies []Movie
+	movies := []Movie{}
 	for rows.Next() {
 		var m Movie
 		err := rows.Scan(&m.ID, &m.Title, &m.Year, &m.Runtime, pq.Array(&m.Genres), &m.CreatedAt, &m.Version)
