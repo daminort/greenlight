@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lib/pq"
+	"greenlight.damian.net/internal/filters"
 )
 
 type Runtime int
@@ -26,6 +27,25 @@ type Movie struct {
 
 type MovieService struct {
 	DB *sql.DB
+}
+
+type CreateMoviePayload struct {
+	Title   string   `json:"title"`
+	Year    int      `json:"year"`
+	Runtime Runtime  `json:"runtime"`
+	Genres  []string `json:"genres"`
+}
+
+type UpdateMoviePayload struct {
+	Title   *string  `json:"title"`
+	Year    *int     `json:"year"`
+	Runtime *Runtime `json:"runtime"`
+	Genres  []string `json:"genres"`
+}
+
+type GetMoviesParams struct {
+	Genres []string
+	*filters.Filters
 }
 
 var ErrInvalidRuntime = errors.New("invalid runtime format (expected 'N mins')")
@@ -62,32 +82,51 @@ func (v *Runtime) UnmarshalJSON(jsonValue []byte) error {
 
 // MovieService
 
-func (ms *MovieService) GetMovies() ([]Movie, error) {
-	query := `
-		SELECT id, title, year, runtime, genres, created_at, version
-		FROM movies`
+func (ms *MovieService) GetMovies(params GetMoviesParams) ([]Movie, *filters.Meta, error) {
+	query := fmt.Sprintf(`
+		SELECT count(*) OVER(), id, title, year, runtime, genres, created_at, version
+		FROM movies
+		WHERE 
+		    (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
+			AND (genres && $2 OR $2 = '{}')
+		ORDER BY %s %s, id ASC
+		LIMIT $3 OFFSET $4`, params.Filters.SortColumn(), params.Filters.SortDirection())
+
+	args := []any{
+		params.Filters.Search,
+		pq.Array(params.Genres),
+		params.Filters.Limit(),
+		params.Filters.Offset(),
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := ms.DB.QueryContext(ctx, query)
+	rows, err := ms.DB.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, &filters.Meta{}, err
 	}
 	defer rows.Close()
 
-	var movies []Movie
+	movies := []Movie{}
+	totalRows := 0
 	for rows.Next() {
 		var m Movie
-		err := rows.Scan(&m.ID, &m.Title, &m.Year, &m.Runtime, pq.Array(&m.Genres), &m.CreatedAt, &m.Version)
+		err := rows.Scan(&totalRows, &m.ID, &m.Title, &m.Year, &m.Runtime, pq.Array(&m.Genres), &m.CreatedAt, &m.Version)
 		if err != nil {
-			return nil, err
+			return nil, &filters.Meta{}, err
 		}
 
 		movies = append(movies, m)
 	}
 
-	return movies, nil
+	if err := rows.Err(); err != nil {
+		return nil, &filters.Meta{}, err
+	}
+
+	meta := filters.NewMeta(totalRows, params.Filters.Page, params.Filters.PageSize)
+
+	return movies, meta, nil
 }
 
 func (ms *MovieService) GetMovie(id int64) (*Movie, error) {

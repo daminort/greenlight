@@ -26,7 +26,7 @@ func NewEnvelope(name string, payload any) *Envelope {
 
 func ReadParamInt(r *http.Request, key string) (int64, error) {
 	params := httprouter.ParamsFromContext(r.Context())
-	value, err := strconv.ParseInt(params.ByName("id"), 10, 64)
+	value, err := strconv.ParseInt(params.ByName(key), 10, 64)
 	if err != nil || value < 1 {
 		return 0, errors.New("unable to parse param or it is invalid")
 	}

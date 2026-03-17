@@ -6,35 +6,56 @@ import (
 	"net/http"
 	"time"
 
+	"greenlight.damian.net/internal/filters"
 	"greenlight.damian.net/internal/models"
+	"greenlight.damian.net/internal/queries"
 	"greenlight.damian.net/internal/utils"
 	"greenlight.damian.net/internal/validator"
 )
 
-type createMoviePayload struct {
-	Title   string         `json:"title"`
-	Year    int            `json:"year"`
-	Runtime models.Runtime `json:"runtime"`
-	Genres  []string       `json:"genres"`
-}
-
-type updateMoviePayload struct {
-	Title   *string         `json:"title"`
-	Year    *int            `json:"year"`
-	Runtime *models.Runtime `json:"runtime"`
-	Genres  []string        `json:"genres"`
-}
-
 // Handlers
 
 func (app *Application) getMovies(w http.ResponseWriter, r *http.Request) {
-	movies, err := app.Models.Movies.GetMovies()
+	fiParams := filters.InitParams{
+		SearchKey:   "title",
+		SortDefault: "title",
+		Columns: []string{
+			"title", "-title",
+			"year", "-year",
+			"runtime", "-runtime",
+		},
+	}
+
+	fils := filters.New(r.URL.Query(), fiParams)
+	fErrors := fils.Validate()
+	if len(fErrors) != 0 {
+		envelop := utils.NewEnvelope("errors", fErrors)
+		err := utils.WriteJSON(w, http.StatusBadRequest, envelop, nil)
+		if err != nil {
+			app.ServerErrorResponse(w, r, err)
+		}
+
+		return
+	}
+
+	query := queries.New(r.URL.Query())
+	params := models.GetMoviesParams{
+		Genres:  query.ReadStrings("genres", []string{}),
+		Filters: fils,
+	}
+
+	movies, meta, err := app.Models.Movies.GetMovies(params)
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	envelop := utils.NewEnvelope("movies", movies)
+	data := map[string]any{
+		"movies": movies,
+		"meta":   meta,
+	}
+
+	envelop := utils.NewEnvelope("result", data)
 	err = utils.WriteJSON(w, http.StatusOK, envelop, nil)
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)
@@ -68,7 +89,7 @@ func (app *Application) getMovie(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Application) createMovie(w http.ResponseWriter, r *http.Request) {
-	var input createMoviePayload
+	var input models.CreateMoviePayload
 
 	err := utils.ReadJSON(w, r, &input)
 	if err != nil {
@@ -106,7 +127,7 @@ func (app *Application) createMovie(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *Application) updateMovie(w http.ResponseWriter, r *http.Request) {
-	var input updateMoviePayload
+	var input models.UpdateMoviePayload
 
 	id, err := utils.ReadParamInt(r, "id")
 	if err != nil {
