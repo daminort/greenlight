@@ -82,9 +82,9 @@ func (v *Runtime) UnmarshalJSON(jsonValue []byte) error {
 
 // MovieService
 
-func (ms *MovieService) GetMovies(params GetMoviesParams) ([]Movie, error) {
+func (ms *MovieService) GetMovies(params GetMoviesParams) ([]Movie, *filters.Meta, error) {
 	query := fmt.Sprintf(`
-		SELECT id, title, year, runtime, genres, created_at, version
+		SELECT count(*) OVER(), id, title, year, runtime, genres, created_at, version
 		FROM movies
 		WHERE 
 		    (to_tsvector('simple', title) @@ plainto_tsquery('simple', $1) OR $1 = '')
@@ -104,26 +104,29 @@ func (ms *MovieService) GetMovies(params GetMoviesParams) ([]Movie, error) {
 
 	rows, err := ms.DB.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, &filters.Meta{}, err
 	}
 	defer rows.Close()
 
 	movies := []Movie{}
+	totalRows := 0
 	for rows.Next() {
 		var m Movie
-		err := rows.Scan(&m.ID, &m.Title, &m.Year, &m.Runtime, pq.Array(&m.Genres), &m.CreatedAt, &m.Version)
+		err := rows.Scan(&totalRows, &m.ID, &m.Title, &m.Year, &m.Runtime, pq.Array(&m.Genres), &m.CreatedAt, &m.Version)
 		if err != nil {
-			return nil, err
+			return nil, &filters.Meta{}, err
 		}
 
 		movies = append(movies, m)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, &filters.Meta{}, err
 	}
 
-	return movies, nil
+	meta := filters.NewMeta(totalRows, params.Filters.Page, params.Filters.PageSize)
+
+	return movies, meta, nil
 }
 
 func (ms *MovieService) GetMovie(id int64) (*Movie, error) {

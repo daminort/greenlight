@@ -22,6 +22,16 @@ type InitParams struct {
 	SortDefault string
 }
 
+type Meta struct {
+	CurrentPage  int `json:"current_page"`
+	PageSize     int `json:"page_size"`
+	FirstPage    int `json:"first_page"`
+	LastPage     int `json:"last_page"`
+	TotalRecords int `json:"total_records"`
+}
+
+// Filters
+
 func New(values url.Values, params InitParams) *Filters {
 	query := queries.New(values)
 
@@ -80,4 +90,16 @@ func (f *Filters) Limit() int {
 
 func (f *Filters) Offset() int {
 	return (f.Page - 1) * f.PageSize
+}
+
+// Meta
+
+func NewMeta(totalRecords, page, pageSize int) *Meta {
+	return &Meta{
+		CurrentPage:  page,
+		PageSize:     pageSize,
+		TotalRecords: totalRecords,
+		FirstPage:    1,
+		LastPage:     (totalRecords + pageSize - 1) / pageSize,
+	}
 }

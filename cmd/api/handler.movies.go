@@ -44,13 +44,18 @@ func (app *Application) getMovies(w http.ResponseWriter, r *http.Request) {
 		Filters: fils,
 	}
 
-	movies, err := app.Models.Movies.GetMovies(params)
+	movies, meta, err := app.Models.Movies.GetMovies(params)
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)
 		return
 	}
 
-	envelop := utils.NewEnvelope("movies", movies)
+	data := map[string]any{
+		"movies": movies,
+		"meta":   meta,
+	}
+
+	envelop := utils.NewEnvelope("result", data)
 	err = utils.WriteJSON(w, http.StatusOK, envelop, nil)
 	if err != nil {
 		app.ServerErrorResponse(w, r, err)
