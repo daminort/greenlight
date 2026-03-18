@@ -3,7 +3,7 @@ package movies
 import (
 	"time"
 
-	"greenlight.damian.net/internal/validator"
+	"greenlight.damian.net/internal/pkg/validator"
 )
 
 func ValidateMovie(m *Movie) *validator.Validator {

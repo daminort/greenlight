@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"greenlight.damian.net/internal/filters"
+	"greenlight.damian.net/internal/pkg/filters"
 )
 
 type Runtime int

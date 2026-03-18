@@ -4,8 +4,8 @@ import (
 	"net/url"
 	"strings"
 
-	"greenlight.damian.net/internal/queries"
-	"greenlight.damian.net/internal/validator"
+	"greenlight.damian.net/internal/pkg/queries"
+	"greenlight.damian.net/internal/pkg/validator"
 )
 
 type Filters struct {

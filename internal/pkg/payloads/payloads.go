@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"greenlight.damian.net/internal/envelopes"
+	"greenlight.damian.net/internal/pkg/envelopes"
 )
 
 func WriteJSON(w http.ResponseWriter, status int, value *envelopes.Envelope, headers http.Header) error {

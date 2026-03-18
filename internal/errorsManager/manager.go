@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"greenlight.damian.net/internal/envelopes"
-	"greenlight.damian.net/internal/payloads"
-	"greenlight.damian.net/internal/validator"
+	"greenlight.damian.net/internal/pkg/envelopes"
+	"greenlight.damian.net/internal/pkg/payloads"
+	"greenlight.damian.net/internal/pkg/validator"
 )
 
 type ErrorsManager struct {
