@@ -1,4 +1,4 @@
-package utils
+package payloads
 
 import (
 	"encoding/json"
@@ -6,40 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 
-	"github.com/julienschmidt/httprouter"
+	"greenlight.damian.net/internal/envelopes"
 )
 
-type Envelope struct {
-	Name    string
-	Payload any
-}
-
-func NewEnvelope(name string, payload any) *Envelope {
-	return &Envelope{
-		Name:    name,
-		Payload: payload,
-	}
-}
-
-func ReadParamInt(r *http.Request, key string) (int64, error) {
-	params := httprouter.ParamsFromContext(r.Context())
-	value, err := strconv.ParseInt(params.ByName(key), 10, 64)
-	if err != nil || value < 1 {
-		return 0, errors.New("unable to parse param or it is invalid")
-	}
-
-	return value, nil
-}
-
-func WriteJSON(w http.ResponseWriter, status int, value *Envelope, headers http.Header) error {
-	data := map[string]any{
-		value.Name: value.Payload,
-	}
-
-	js, err := json.Marshal(data)
+func WriteJSON(w http.ResponseWriter, status int, value *envelopes.Envelope, headers http.Header) error {
+	js, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}

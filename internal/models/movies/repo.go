@@ -1,88 +1,28 @@
-package models
+package movies
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/lib/pq"
+	"greenlight.damian.net/internal/errorsManager"
 	"greenlight.damian.net/internal/filters"
 )
 
-type Runtime int
-
-type Movie struct {
-	ID        int64     `json:"id"`
-	Title     string    `json:"title"`
-	Year      int       `json:"year,omitzero"`
-	Runtime   Runtime   `json:"runtime,omitzero"`
-	Genres    []string  `json:"genres,omitzero"`
-	Version   int       `json:"version"`
-	CreatedAt time.Time `json:"-"`
-}
-
-type MovieService struct {
+type Repository struct {
 	DB *sql.DB
 }
 
-type CreateMoviePayload struct {
-	Title   string   `json:"title"`
-	Year    int      `json:"year"`
-	Runtime Runtime  `json:"runtime"`
-	Genres  []string `json:"genres"`
-}
-
-type UpdateMoviePayload struct {
-	Title   *string  `json:"title"`
-	Year    *int     `json:"year"`
-	Runtime *Runtime `json:"runtime"`
-	Genres  []string `json:"genres"`
-}
-
-type GetMoviesParams struct {
-	Genres []string
-	*filters.Filters
-}
-
-var ErrInvalidRuntime = errors.New("invalid runtime format (expected 'N mins')")
-
-// Movie
-
-func (v Runtime) MarshalJSON() ([]byte, error) {
-	jsonValue := fmt.Sprintf("%d mins", v)
-	quotedValues := strconv.Quote(jsonValue)
-
-	return []byte(quotedValues), nil
-}
-
-func (v *Runtime) UnmarshalJSON(jsonValue []byte) error {
-	unquotedValue, err := strconv.Unquote(string(jsonValue))
-	if err != nil {
-		return ErrInvalidRuntime
+func NewRepository(db *sql.DB) *Repository {
+	return &Repository{
+		DB: db,
 	}
-
-	parts := strings.Split(unquotedValue, " ")
-	if len(parts) != 2 || parts[1] != "mins" {
-		return ErrInvalidRuntime
-	}
-
-	value, err := strconv.ParseInt(parts[0], 10, 32)
-	if err != nil {
-		return ErrInvalidRuntime
-	}
-
-	*v = Runtime(value)
-
-	return nil
 }
 
-// MovieService
-
-func (ms *MovieService) GetMovies(params GetMoviesParams) ([]Movie, *filters.Meta, error) {
+func (r *Repository) GetList(params GetMoviesParams) ([]Movie, *filters.Meta, error) {
 	query := fmt.Sprintf(`
 		SELECT count(*) OVER(), id, title, year, runtime, genres, created_at, version
 		FROM movies
@@ -102,7 +42,7 @@ func (ms *MovieService) GetMovies(params GetMoviesParams) ([]Movie, *filters.Met
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := ms.DB.QueryContext(ctx, query, args...)
+	rows, err := r.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, &filters.Meta{}, err
 	}
@@ -129,9 +69,9 @@ func (ms *MovieService) GetMovies(params GetMoviesParams) ([]Movie, *filters.Met
 	return movies, meta, nil
 }
 
-func (ms *MovieService) GetMovie(id int64) (*Movie, error) {
+func (r *Repository) Get(id int64) (*Movie, error) {
 	if id < 1 {
-		return nil, ErrRecordNotFound
+		return nil, errorsManager.ErrRecordNotFound
 	}
 
 	query := `
@@ -144,7 +84,7 @@ func (ms *MovieService) GetMovie(id int64) (*Movie, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	row := ms.DB.QueryRowContext(ctx, query, id)
+	row := r.DB.QueryRowContext(ctx, query, id)
 	err := row.Scan(
 		&movie.ID,
 		&movie.Title,
@@ -156,7 +96,7 @@ func (ms *MovieService) GetMovie(id int64) (*Movie, error) {
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrRecordNotFound
+			return nil, errorsManager.ErrRecordNotFound
 		}
 		return nil, err
 	}
@@ -164,7 +104,7 @@ func (ms *MovieService) GetMovie(id int64) (*Movie, error) {
 	return &movie, nil
 }
 
-func (ms *MovieService) InsertMovie(movie *Movie) error {
+func (r *Repository) Create(movie *Movie) error {
 	query := `
 		INSERT INTO movies (title, year, runtime, genres)
 		VALUES ($1, $2, $3, $4)
@@ -175,10 +115,10 @@ func (ms *MovieService) InsertMovie(movie *Movie) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	return ms.DB.QueryRowContext(ctx, query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
+	return r.DB.QueryRowContext(ctx, query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
 }
 
-func (ms *MovieService) UpdateMovie(movie *Movie) error {
+func (r *Repository) Update(movie *Movie) error {
 	query := `
 		UPDATE movies
 		SET title = $2, year = $3, runtime = $4, genres = $5, version = version + 1
@@ -190,10 +130,10 @@ func (ms *MovieService) UpdateMovie(movie *Movie) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := ms.DB.QueryRowContext(ctx, query, args...).Scan(&movie.Version)
+	err := r.DB.QueryRowContext(ctx, query, args...).Scan(&movie.Version)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return ErrEditConflict
+			return errorsManager.ErrEditConflict
 		}
 		return err
 	}
@@ -201,9 +141,9 @@ func (ms *MovieService) UpdateMovie(movie *Movie) error {
 	return nil
 }
 
-func (ms *MovieService) DeleteMovie(id int64) error {
+func (r *Repository) Delete(id int64) error {
 	if id < 1 {
-		return ErrRecordNotFound
+		return errorsManager.ErrRecordNotFound
 	}
 
 	query := `
@@ -213,7 +153,7 @@ func (ms *MovieService) DeleteMovie(id int64) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	res, err := ms.DB.ExecContext(ctx, query, id)
+	res, err := r.DB.ExecContext(ctx, query, id)
 	if err != nil {
 		return err
 	}
@@ -224,7 +164,7 @@ func (ms *MovieService) DeleteMovie(id int64) error {
 	}
 
 	if count == 0 {
-		return ErrRecordNotFound
+		return errorsManager.ErrRecordNotFound
 	}
 
 	return nil

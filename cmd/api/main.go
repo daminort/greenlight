@@ -9,9 +9,12 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"greenlight.damian.net/cmd/api/config"
-	"greenlight.damian.net/cmd/api/database"
-	"greenlight.damian.net/internal/models"
+	"greenlight.damian.net/internal/config"
+	"greenlight.damian.net/internal/database"
+	"greenlight.damian.net/internal/errorsManager"
+	"greenlight.damian.net/internal/middlewares"
+	"greenlight.damian.net/internal/models/health"
+	"greenlight.damian.net/internal/models/movies"
 )
 
 const version = "1.0.0"
@@ -30,6 +33,9 @@ func main() {
 	// logger
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
+	// error manager
+	errorManager := errorsManager.New(logger)
+
 	// database
 	db, err := database.New()
 	if err != nil {
@@ -40,13 +46,16 @@ func main() {
 	logger.Info("database connection pool established")
 
 	// models
-	mdls := models.NewModels(db.DB)
+	mvRepo := movies.NewRepository(db.DB)
+	mvService := movies.NewService(mvRepo)
 
 	// application
 	app := &Application{
-		Config: cfg,
-		Logger: logger,
-		Models: mdls,
+		Config:       cfg,
+		ErrorManager: errorManager,
+		Middlewares:  middlewares.New(errorManager),
+		Movies:       movies.NewHandlers(mvService, errorManager),
+		Health:       health.NewHandlers(cfg, errorManager),
 	}
 
 	// server
