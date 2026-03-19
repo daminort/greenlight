@@ -1,6 +1,8 @@
 package main
 
 import (
+	"log/slog"
+
 	"greenlight.damian.net/internal/config"
 	"greenlight.damian.net/internal/errors_manager"
 	"greenlight.damian.net/internal/middlewares"
@@ -10,6 +12,7 @@ import (
 
 type Application struct {
 	Config       *config.Config
+	Logger       *slog.Logger
 	ErrorManager *errorsManager.ErrorsManager
 	Middlewares  *middlewares.Middlewares
 	Movies       *movies.Handlers
