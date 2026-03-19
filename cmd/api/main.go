@@ -1,12 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"log/slog"
-	"net/http"
 	"os"
-	"time"
 
 	"github.com/joho/godotenv"
 	"greenlight.damian.net/internal/config"
@@ -52,25 +49,14 @@ func main() {
 	// application
 	app := &Application{
 		Config:       cfg,
+		Logger:       logger,
 		ErrorManager: errorManager,
 		Middlewares:  middlewares.New(cfg, errorManager),
 		Movies:       movies.NewHandlers(mvService, errorManager),
 		Health:       health.NewHandlers(cfg, errorManager),
 	}
-
-	// server
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Port),
-		Handler:      app.routes(),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
-	}
-
-	logger.Info("starting server", "addr", srv.Addr, "env", cfg.Env)
-
-	err = srv.ListenAndServe()
+	
+	err = app.Serve()
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
