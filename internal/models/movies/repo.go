@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/lib/pq"
-	"greenlight.damian.net/internal/errorsManager"
-	"greenlight.damian.net/internal/filters"
+	"greenlight.damian.net/internal/errors_manager"
+	"greenlight.damian.net/internal/pkg/filters"
 )
 
 type Repository struct {

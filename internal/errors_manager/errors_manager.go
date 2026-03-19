@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"greenlight.damian.net/internal/envelopes"
-	"greenlight.damian.net/internal/payloads"
-	"greenlight.damian.net/internal/validator"
+	"greenlight.damian.net/internal/pkg/envelopes"
+	"greenlight.damian.net/internal/pkg/payloads"
+	"greenlight.damian.net/internal/pkg/validator"
 )
 
 type ErrorsManager struct {
@@ -76,4 +76,9 @@ func (m *ErrorsManager) FailedValidationResponse(w http.ResponseWriter, r *http.
 func (m *ErrorsManager) EditConflictResponse(w http.ResponseWriter, r *http.Request) {
 	message := fmt.Sprint("unable to update the record due to an edit conflict, please try again")
 	m.ErrorResponse(w, r, http.StatusConflict, message)
+}
+
+func (m *ErrorsManager) RateLimitExceededResponse(w http.ResponseWriter, r *http.Request) {
+	message := fmt.Sprint("rate limit exceeded, please try again later")
+	m.ErrorResponse(w, r, http.StatusTooManyRequests, message)
 }

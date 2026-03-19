@@ -2,7 +2,7 @@ package main
 
 import (
 	"greenlight.damian.net/internal/config"
-	"greenlight.damian.net/internal/errorsManager"
+	"greenlight.damian.net/internal/errors_manager"
 	"greenlight.damian.net/internal/middlewares"
 	"greenlight.damian.net/internal/models/health"
 	"greenlight.damian.net/internal/models/movies"

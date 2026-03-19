@@ -1,6 +1,8 @@
 package movies
 
-import "greenlight.damian.net/internal/filters"
+import (
+	"greenlight.damian.net/internal/pkg/filters"
+)
 
 type Service struct {
 	Repository RepositoryInstance

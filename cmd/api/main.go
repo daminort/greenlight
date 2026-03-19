@@ -11,7 +11,7 @@ import (
 	"github.com/joho/godotenv"
 	"greenlight.damian.net/internal/config"
 	"greenlight.damian.net/internal/database"
-	"greenlight.damian.net/internal/errorsManager"
+	"greenlight.damian.net/internal/errors_manager"
 	"greenlight.damian.net/internal/middlewares"
 	"greenlight.damian.net/internal/models/health"
 	"greenlight.damian.net/internal/models/movies"
@@ -53,7 +53,7 @@ func main() {
 	app := &Application{
 		Config:       cfg,
 		ErrorManager: errorManager,
-		Middlewares:  middlewares.New(errorManager),
+		Middlewares:  middlewares.New(cfg, errorManager),
 		Movies:       movies.NewHandlers(mvService, errorManager),
 		Health:       health.NewHandlers(cfg, errorManager),
 	}

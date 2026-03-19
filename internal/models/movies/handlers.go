@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"net/http"
 
-	"greenlight.damian.net/internal/envelopes"
-	"greenlight.damian.net/internal/errorsManager"
-	"greenlight.damian.net/internal/filters"
-	"greenlight.damian.net/internal/payloads"
-	"greenlight.damian.net/internal/queries"
-	"greenlight.damian.net/internal/requests"
+	"greenlight.damian.net/internal/errors_manager"
+	"greenlight.damian.net/internal/pkg/envelopes"
+	"greenlight.damian.net/internal/pkg/filters"
+	"greenlight.damian.net/internal/pkg/payloads"
+	"greenlight.damian.net/internal/pkg/queries"
+	"greenlight.damian.net/internal/pkg/requests"
 )
 
 type Handlers struct {
