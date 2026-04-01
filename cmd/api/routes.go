@@ -21,5 +21,10 @@ func (app *Application) routes() http.Handler {
 	router.HandlerFunc(http.MethodPatch, "/v1/movies/:id", app.Movies.Update)
 	router.HandlerFunc(http.MethodDelete, "/v1/movies/:id", app.Movies.Delete)
 
+	// users
+	router.HandlerFunc(http.MethodGet, "/v1/users", app.Users.GetByEmail)
+	router.HandlerFunc(http.MethodPost, "/v1/users", app.Users.Create)
+	router.HandlerFunc(http.MethodPut, "/v1/users/:id", app.Users.Update)
+
 	return app.Middlewares.RecoverPanic(app.Middlewares.RateLimit(router))
 }

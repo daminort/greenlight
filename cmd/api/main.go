@@ -12,6 +12,7 @@ import (
 	"greenlight.damian.net/internal/middlewares"
 	"greenlight.damian.net/internal/models/health"
 	"greenlight.damian.net/internal/models/movies"
+	"greenlight.damian.net/internal/models/users"
 )
 
 const version = "1.0.0"
@@ -46,6 +47,9 @@ func main() {
 	mvRepo := movies.NewRepository(db.DB)
 	mvService := movies.NewService(mvRepo)
 
+	usRepo := users.NewRepository(db.DB)
+	usService := users.NewService(usRepo)
+
 	// application
 	app := &Application{
 		Config:       cfg,
@@ -53,9 +57,10 @@ func main() {
 		ErrorManager: errorManager,
 		Middlewares:  middlewares.New(cfg, errorManager),
 		Movies:       movies.NewHandlers(mvService, errorManager),
+		Users:        users.NewHandlers(usService, errorManager),
 		Health:       health.NewHandlers(cfg, errorManager),
 	}
-	
+
 	err = app.Serve()
 	if err != nil {
 		logger.Error(err.Error())

@@ -17,3 +17,10 @@ func ReadParamInt(r *http.Request, key string) (int64, error) {
 
 	return value, nil
 }
+
+func ReadParamString(r *http.Request, key string) string {
+	params := httprouter.ParamsFromContext(r.Context())
+	value := params.ByName(key)
+
+	return value
+}
