@@ -8,6 +8,7 @@ import (
 	"greenlight.damian.net/internal/middlewares"
 	"greenlight.damian.net/internal/models/health"
 	"greenlight.damian.net/internal/models/movies"
+	"greenlight.damian.net/internal/models/users"
 )
 
 type Application struct {
@@ -16,5 +17,6 @@ type Application struct {
 	ErrorManager *errorsManager.ErrorsManager
 	Middlewares  *middlewares.Middlewares
 	Movies       *movies.Handlers
+	Users        *users.Handlers
 	Health       *health.Handlers
 }

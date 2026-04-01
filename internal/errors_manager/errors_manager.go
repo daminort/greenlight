@@ -18,6 +18,7 @@ type ErrorsManager struct {
 var (
 	ErrRecordNotFound = errors.New("record not found")
 	ErrEditConflict   = errors.New("edit conflict")
+	ErrDuplicateEmail = errors.New("duplicate email")
 )
 
 func New(logger *slog.Logger) *ErrorsManager {
@@ -81,4 +82,9 @@ func (m *ErrorsManager) EditConflictResponse(w http.ResponseWriter, r *http.Requ
 func (m *ErrorsManager) RateLimitExceededResponse(w http.ResponseWriter, r *http.Request) {
 	message := fmt.Sprint("rate limit exceeded, please try again later")
 	m.ErrorResponse(w, r, http.StatusTooManyRequests, message)
+}
+
+func (m *ErrorsManager) EmailDuplicatedResponse(w http.ResponseWriter, r *http.Request) {
+	message := fmt.Sprint("duplicated email address")
+	m.ErrorResponse(w, r, http.StatusUnprocessableEntity, message)
 }
