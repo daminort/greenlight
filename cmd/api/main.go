@@ -6,9 +6,11 @@ import (
 	"os"
 
 	"github.com/joho/godotenv"
+	bgManager "greenlight.damian.net/internal/bg_manager"
 	"greenlight.damian.net/internal/config"
 	"greenlight.damian.net/internal/database"
 	"greenlight.damian.net/internal/errors_manager"
+	"greenlight.damian.net/internal/mailer"
 	"greenlight.damian.net/internal/middlewares"
 	"greenlight.damian.net/internal/models/health"
 	"greenlight.damian.net/internal/models/movies"
@@ -32,7 +34,23 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	// error manager
-	errorManager := errorsManager.New(logger)
+	errorMngr := errorsManager.New(logger)
+
+	// background manager
+	bgMngr := bgManager.New(logger)
+
+	// mailer
+	mail, err := mailer.New(
+		cfg.SMTP.Host,
+		cfg.SMTP.Port,
+		cfg.SMTP.Username,
+		cfg.SMTP.Password,
+		cfg.SMTP.Sender,
+	)
+	if err != nil {
+		logger.Error("Unable to create mailer", "error", err.Error())
+		return
+	}
 
 	// database
 	db, err := database.New()
@@ -54,11 +72,13 @@ func main() {
 	app := &Application{
 		Config:       cfg,
 		Logger:       logger,
-		ErrorManager: errorManager,
-		Middlewares:  middlewares.New(cfg, errorManager),
-		Movies:       movies.NewHandlers(mvService, errorManager),
-		Users:        users.NewHandlers(usService, errorManager),
-		Health:       health.NewHandlers(cfg, errorManager),
+		ErrorManager: errorMngr,
+		BgManager:    bgMngr,
+		Mailer:       mail,
+		Middlewares:  middlewares.New(cfg, errorMngr),
+		Movies:       movies.NewHandlers(mvService, errorMngr),
+		Users:        users.NewHandlers(usService, errorMngr, mail, bgMngr),
+		Health:       health.NewHandlers(cfg, errorMngr),
 	}
 
 	err = app.Serve()

@@ -53,5 +53,13 @@ func (app *Application) ListenSignals(s *http.Server, errChan chan error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	errChan <- s.Shutdown(ctx)
+	err := s.Shutdown(ctx)
+	if err != nil {
+		errChan <- err
+	}
+
+	app.Logger.Info("completing background tasks")
+	app.BgManager.WaitGroup.Wait()
+
+	errChan <- nil
 }

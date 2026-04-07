@@ -1,6 +1,10 @@
 package config
 
-import "flag"
+import (
+	"flag"
+	"os"
+	"strconv"
+)
 
 type Limiter struct {
 	RPS     int
@@ -8,11 +12,20 @@ type Limiter struct {
 	Enabled bool
 }
 
+type SMTP struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	Sender   string
+}
+
 type Config struct {
 	Port    int
 	Env     string
 	Version string
 	Limiter *Limiter
+	SMTP    *SMTP
 }
 
 func New() *Config {
@@ -32,6 +45,27 @@ func New() *Config {
 	flag.Parse()
 
 	cfg.Limiter = limiter
+
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+	smtpUsername := os.Getenv("SMTP_USERNAME")
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
+	smtpSender := os.Getenv("SMTP_SENDER")
+
+	smtpPortInt, err := strconv.Atoi(smtpPort)
+	if err != nil {
+		smtpPortInt = 2525
+	}
+
+	smtp := &SMTP{
+		Host:     smtpHost,
+		Port:     smtpPortInt,
+		Username: smtpUsername,
+		Password: smtpPassword,
+		Sender:   smtpSender,
+	}
+
+	cfg.SMTP = smtp
 
 	return &cfg
 }

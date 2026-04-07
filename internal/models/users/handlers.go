@@ -4,7 +4,9 @@ import (
 	"errors"
 	"net/http"
 
+	"greenlight.damian.net/internal/bg_manager"
 	"greenlight.damian.net/internal/errors_manager"
+	"greenlight.damian.net/internal/mailer"
 	"greenlight.damian.net/internal/pkg/envelopes"
 	"greenlight.damian.net/internal/pkg/payloads"
 	"greenlight.damian.net/internal/pkg/queries"
@@ -15,12 +17,16 @@ import (
 type Handlers struct {
 	Service      ServiceInstance
 	ErrorManager *errorsManager.ErrorsManager
+	Mailer       *mailer.Mailer
+	BgManager    *bgManager.BgManager
 }
 
-func NewHandlers(s ServiceInstance, em *errorsManager.ErrorsManager) *Handlers {
+func NewHandlers(s ServiceInstance, em *errorsManager.ErrorsManager, m *mailer.Mailer, bg *bgManager.BgManager) *Handlers {
 	return &Handlers{
 		Service:      s,
 		ErrorManager: em,
+		Mailer:       m,
+		BgManager:    bg,
 	}
 }
 
@@ -93,6 +99,15 @@ func (h *Handlers) Create(w http.ResponseWriter, r *http.Request) {
 		h.ErrorManager.ServerErrorResponse(w, r, err)
 		return
 	}
+
+	// run goroutine to send email
+	h.BgManager.Run(h.ErrorManager.Logger, func() {
+		err = h.Mailer.SendMail(user.Email, mailer.UserWelcomeTemplate, user)
+		if err != nil {
+			h.ErrorManager.Logger.Error(err.Error())
+			return
+		}
+	})
 
 	envelop := envelopes.New("user", user)
 	err = payloads.WriteJSON(w, http.StatusCreated, envelop, nil)
